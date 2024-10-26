@@ -52,7 +52,7 @@ app.get("/getUsers", async (req, res) => {
 
 
 app.post("/register", async (req,res) =>{
-  const {name ,age }= req.body;
+  const {name,age }= req.body;
   try{
     const newUser = userModel({name,age});
     await newUser.save();
