@@ -1,69 +1,67 @@
-import express from "express";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
-import cors from "cors";
-
+import express from 'express';
+import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import cors from 'cors';  // Corrected import
 
 const app = express();
-dotenv.config();
-
-
+app.use(cors());  // CORS middleware should be applied here
 app.use(express.json());
-app.use(cors());
+
+mongoose.connect('mongodb://localhost:27017/gym')
+  .then(() => console.log('MongoDB connected to gym database'))
+  .catch((error) => console.error('MongoDB connection error:', error));
 
 
-const PORT = process.env.PORT || 7000;
-const MONGOURL = process.env.MONGO_URL;
-
-console.log("MongoDB URL:", MONGOURL);
-
-
-
-mongoose.connect(MONGOURL)
-  .then(() => {
-    console.log("Database connected successfully");
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Database connection error:", err);
-  });
-
-const userSchema = new mongoose.Schema({
+// Assuming you have a User model
+const User = mongoose.model('User', new mongoose.Schema({
   name: String,
-  age: Number,
-});
+  email: String,
+  phone: String,
+  gender: String,
+  password: String,
+}));
 
-const userModel = mongoose.model("users", userSchema);
 
 
-app.get("/getUsers", async (req, res) => {
+// Registration Route
+app.post('/register', async (req, res) => {
+  const { name, email, phone, gender, password } = req.body;
+
+  // Hash the password before storing it
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = new User({ name, email, phone, gender, password: hashedPassword });
+
   try {
-    const userData = await userModel.find();
-    console.log("Retrieved userData:", userData); // Debugging log
-    res.json(userData);
-  } catch (error) {
-
-    console.error("Error retrieving user data:", error);
-    res.status(500).json({ message: "Error retrieving user data" });
-  }
-});
-
-
-app.post("/register", async (req,res) =>{
-  const {name,age }= req.body;
-  try{
-    const newUser = userModel({name,age});
     await newUser.save();
-    res.status(201).json({message: "user regisatered successfully", user: newUser});
-
-
-  }catch(error){
-    console.log("Error registering user ", error);
-    res.status(500).json({message:"error register user"});
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (error) {
+    console.error('Error registering user:', error);  // Added log
+    res.status(500).json({ message: 'Error registering user' });
   }
 });
 
 
+// Login Route
+app.post('/login', async (req, res) => {
+  const { name, password } = req.body;
 
+  try {
+    const user = await User.findOne({ name });
+    if (!user) return res.status(400).json({ message: 'User not found' });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign({ userId: user._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    res.json({ message: 'Login successful', token });
+  } catch (error) {
+    res.status(500).json({ message: 'Error logging in' });
+  }
+});
+
+// Start server
+app.listen(8000, () => {
+  console.log('Server running on http://localhost:8000');
+});
